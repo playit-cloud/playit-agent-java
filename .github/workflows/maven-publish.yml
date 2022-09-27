@@ -16,10 +16,10 @@ jobs:
         with:
           java-version: '18'
           distribution: 'adopt'
-      - name: Print username
-        run: echo "${{ secrets.OSSRH_USERNAME }}"
-      - name: Publish package
-        run: mvn --batch-mode deploy
+      - name: Publish Package
         env:
-          MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
-          MAVEN_PASSWORD: ${{ secrets.OSSRH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir ~/.m2
+          echo "<settings><servers><server><id>ossrh</id><username>${{ secrets.OSSRH_USERNAME }}</username><password>${{ secrets.OSSRH_TOKEN }}</password></server></servers></settings>" > ~/.m2/settings.xml
+          mvn --batch-mode deploy
