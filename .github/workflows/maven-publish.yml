@@ -16,6 +16,8 @@ jobs:
         with:
           java-version: '18'
           distribution: 'adopt'
+      - name: Print username
+        run: echo "${{ secrets.OSSRH_USERNAME }}"
       - name: Publish package
         run: mvn --batch-mode deploy
         env:
