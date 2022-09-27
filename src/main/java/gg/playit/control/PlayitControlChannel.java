@@ -4,6 +4,7 @@ import gg.playit.messages.ControlFeedReader;
 import gg.playit.messages.ControlRequestWriter;
 import gg.playit.messages.DecodeException;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -18,7 +19,7 @@ import java.util.logging.Logger;
 
 import static gg.playit.control.ChannelSetup.CONTROL_PORT;
 
-public class PlayitControlChannel {
+public class PlayitControlChannel implements Closeable {
     static Logger log = Logger.getLogger(ChannelSetup.class.getName());
 
     ApiClient apiClient;
@@ -129,5 +130,11 @@ public class PlayitControlChannel {
                 ", latestPong=" + latestPong +
                 ", registered=" + registered +
                 '}';
+    }
+
+    @Override
+    public void close() throws IOException {
+        this.socket.close();
+        this.apiClient.close();
     }
 }
