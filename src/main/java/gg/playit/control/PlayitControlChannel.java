@@ -1,5 +1,6 @@
 package gg.playit.control;
 
+import gg.playit.api.ApiClient;
 import gg.playit.messages.ControlFeedReader;
 import gg.playit.messages.ControlRequestWriter;
 import gg.playit.messages.DecodeException;
@@ -135,6 +136,5 @@ public class PlayitControlChannel implements Closeable {
     @Override
     public void close() throws IOException {
         this.socket.close();
-        this.apiClient.close();
     }
 }

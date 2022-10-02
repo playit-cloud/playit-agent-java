@@ -1,5 +1,6 @@
 package gg.playit.messages;
 
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;

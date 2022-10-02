@@ -1,5 +1,7 @@
 package gg.playit.control;
 
+import gg.playit.api.ApiClient;
+import gg.playit.api.actions.SignAgentRegister;
 import gg.playit.messages.ControlFeedReader;
 import gg.playit.messages.ControlRequestWriter;
 import gg.playit.messages.DecodeException;
@@ -110,8 +112,13 @@ public class ChannelSetup {
 
             var registerRequest = ByteBuffer.allocate(1024);
 
-            try (var client = new ApiClient(secretKey)) {
-                var data = client.getSignedAgentRegisterData(1, this.pong.clientAddr, this.pong.tunnelAddr);
+            try {
+                var client = new ApiClient(secretKey);
+                var req = new SignAgentRegister();
+                req.agentVersion = 10_001;
+                req.clientAddr = this.pong.clientAddr;
+                req.tunnelAddr = this.pong.tunnelAddr;
+                var data = client.getSignedAgentRegisterData(req);
                 ControlRequestWriter.requestId(registerRequest, 100).registerBytes(data);
             } catch (DecoderException e) {
                 throw new IOException("failed parse hex response from server", e);
@@ -158,7 +165,7 @@ public class ChannelSetup {
                                 continue;
                             }
 
-                            System.out.println("Got error: " + error);
+                            log.warning("got error from control feed: " + error);
                         }
 
                         break;
