@@ -1,5 +1,7 @@
 package gg.playit.control;
 
+import gg.playit.api.models.PortType;
+
 import java.io.IOException;
 import java.net.Inet4Address;
 import java.net.InetAddress;
@@ -7,6 +9,8 @@ import java.net.InetSocketAddress;
 import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.Objects;
 
 public class ControlMessages {
     public interface Message {
@@ -21,7 +25,7 @@ public class ControlMessages {
 
     public static class Ping implements ControlRequest {
         public long now;
-        public long currentPing;
+        public int currentPing;
         public AgentSessionId sessionId;
 
         @Override
@@ -41,7 +45,7 @@ public class ControlMessages {
                     buffer.put((byte) 0);
                 } else {
                     buffer.put((byte) 1);
-                    buffer.putLong(currentPing);
+                    buffer.putInt(currentPing);
                 }
                 if (this.sessionId == null) {
                     buffer.put((byte) 0);
@@ -62,7 +66,7 @@ public class ControlMessages {
                 if (buffer.get() == (byte) 0) {
                     this.currentPing = 0;
                 } else {
-                    this.currentPing = buffer.getLong();
+                    this.currentPing = buffer.getInt();
                 }
 
                 if (buffer.get() == (byte) 0) {
@@ -74,6 +78,19 @@ public class ControlMessages {
             } catch (BufferUnderflowException e) {
                 throw new IOException("ran out of data", e);
             }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (!(o instanceof Ping)) {
+                return false;
+            }
+
+            Ping other = (Ping) o;
+
+            return this.now == other.now
+                    && this.currentPing == other.currentPing
+                    && this.sessionId.equals(other.sessionId);
         }
     }
 
@@ -126,6 +143,21 @@ public class ControlMessages {
                 throw new IOException("ran out of data", e);
             }
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            AgentRegister that = (AgentRegister) o;
+
+            return accountId == that.accountId
+                    && agentId == that.agentId
+                    && agentVersion == that.agentVersion
+                    && timestamp == that.timestamp
+                    && Objects.equals(clientAddr, that.clientAddr)
+                    && Objects.equals(tunnelAddr, that.tunnelAddr)
+                    && Arrays.equals(signature, that.signature);
+        }
     }
 
     public static class AgentKeepAlive implements ControlRequest {
@@ -157,6 +189,14 @@ public class ControlMessages {
             } catch (BufferUnderflowException e) {
                 throw new IOException("ran out of data", e);
             }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            AgentKeepAlive that = (AgentKeepAlive) o;
+            return Objects.equals(sessionId, that.sessionId);
         }
     }
 
@@ -190,6 +230,14 @@ public class ControlMessages {
                 throw new IOException("ran out of data", e);
             }
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SetupUdpChannel that = (SetupUdpChannel) o;
+            return Objects.equals(sessionId, that.sessionId);
+        }
     }
 
     public static class AgentCheckPortMapping implements ControlRequest {
@@ -211,6 +259,7 @@ public class ControlMessages {
         public void writeTo(ByteBuffer buffer) throws IOException {
             try {
                 this.sessionId.writeTo(buffer);
+                this.portRange.writeTo(buffer);
             } catch (BufferOverflowException e) {
                 throw new IOException("ran out of space", e);
             }
@@ -221,9 +270,26 @@ public class ControlMessages {
             try {
                 this.sessionId = new AgentSessionId();
                 this.sessionId.readFrom(buffer);
+
+                this.portRange = new PortRange();
+                this.portRange.readFrom(buffer);
             } catch (BufferUnderflowException e) {
                 throw new IOException("ran out of data", e);
             }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            AgentCheckPortMapping that = (AgentCheckPortMapping) o;
+            return Objects.equals(sessionId, that.sessionId)
+                    && Objects.equals(portRange, that.portRange);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(sessionId, portRange);
         }
     }
 
@@ -231,6 +297,7 @@ public class ControlMessages {
         public InetAddress ip;
         public short portStart;
         public short portEnd;
+        public PortProto proto;
 
         @Override
         public void writeTo(ByteBuffer buffer) throws IOException {
@@ -240,10 +307,12 @@ public class ControlMessages {
                 } else {
                     buffer.put((byte) 6);
                 }
-
                 buffer.put(ip.getAddress());
+
                 buffer.putShort(this.portStart);
                 buffer.putShort(this.portEnd);
+
+                this.proto.writeTo(buffer);
             } catch (BufferOverflowException e) {
                 throw new IOException("ran out of data", e);
             }
@@ -263,26 +332,43 @@ public class ControlMessages {
                     throw new IOException("Invalid IP protocol version: " + ipVersion);
                 }
 
+                buffer.get(ipData);
                 this.ip = InetAddress.getByAddress(ipData);
                 this.portStart = buffer.getShort();
                 this.portEnd = buffer.getShort();
+                this.proto = new PortProto();
+                this.proto.readFrom(buffer);
             } catch (BufferUnderflowException e) {
                 throw new IOException("ran out of data", e);
             }
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            PortRange portRange = (PortRange) o;
+            return portStart == portRange.portStart
+                    && portEnd == portRange.portEnd
+                    && Objects.equals(ip, portRange.ip)
+                    && Objects.equals(proto, portRange.proto);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(ip, portStart, portEnd, proto);
+        }
     }
 
-    public enum PortProto implements Message {
-        Both,
-        Tcp,
-        Udp;
+    public static class PortProto implements Message {
+        public PortType proto;
 
         @Override
         public void writeTo(ByteBuffer buffer) throws IOException {
             try {
-                if (this == PortProto.Tcp) {
+                if (this.proto == PortType.TCP) {
                     buffer.put((byte) 1);
-                } else if (this == PortProto.Udp) {
+                } else if (this.proto == PortType.UDP) {
                     buffer.put((byte) 2);
                 } else {
                     buffer.put((byte) 3);
@@ -294,7 +380,33 @@ public class ControlMessages {
 
         @Override
         public void readFrom(ByteBuffer buffer) throws IOException {
-            throw new IOException("cannot read enum constant");
+            try {
+                int value = buffer.get();
+                if (value == 1) {
+                    this.proto = PortType.TCP;
+                } else if (value == 2) {
+                    this.proto = PortType.UDP;
+                } else if (value == 3) {
+                    this.proto = PortType.BOTH;
+                } else {
+                    throw new IOException("invalid port type variant: " + value);
+                }
+            } catch (BufferUnderflowException e) {
+                throw new IOException("ran out of data", e);
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            PortProto portProto = (PortProto) o;
+            return proto == portProto.proto;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(proto);
         }
     }
 
@@ -324,6 +436,19 @@ public class ControlMessages {
                 throw new IOException("ran out of data", e);
             }
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (!(o instanceof AgentSessionId)) {
+                return false;
+            }
+
+            AgentSessionId other = (AgentSessionId) o;
+
+            return this.sessionId == other.sessionId
+                    && this.accountId == other.accountId
+                    && this.agentId == other.agentId;
+        }
     }
 
     public static InetSocketAddress readInet(ByteBuffer buffer) throws IOException {
@@ -342,7 +467,7 @@ public class ControlMessages {
             buffer.get(ipData);
 
             InetAddress ip = InetAddress.getByAddress(ipData);
-            short portNumber = buffer.getShort();
+            int portNumber = Short.toUnsignedInt(buffer.getShort());
 
             return new InetSocketAddress(ip, portNumber);
         } catch (BufferUnderflowException e) {
@@ -356,13 +481,12 @@ public class ControlMessages {
 
             if (addr instanceof Inet4Address) {
                 buffer.put((byte) 4);
-            }
-            else {
+            } else {
                 buffer.put((byte) 6);
             }
 
             buffer.put(addr.getAddress());
-            buffer.putShort((short)net.getPort());
+            buffer.putShort((short) net.getPort());
         } catch (BufferOverflowException e) {
             throw new IOException("ran out of data", e);
         }
