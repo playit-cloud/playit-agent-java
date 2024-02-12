@@ -451,6 +451,219 @@ public class ControlMessages {
         }
     }
 
+    public static class Pong implements Message {
+        public long requestNow;
+        public long serverNow;
+        public long serverId;
+        public int dataCenterId;
+        public InetSocketAddress clientAddr;
+        public InetSocketAddress tunnelAddr;
+        public long sessionExpireAt;
+
+        @Override
+        public void writeTo(ByteBuffer buffer) throws IOException {
+            try {
+                buffer.putLong(this.requestNow);
+                buffer.putLong(this.serverNow);
+                buffer.putLong(this.serverId);
+                buffer.putInt(this.dataCenterId);
+                writeInet(buffer, this.clientAddr);
+                writeInet(buffer, this.tunnelAddr);
+
+                if (this.sessionExpireAt == 0) {
+                    buffer.put((byte)0);
+                } else {
+                    buffer.put((byte)1);
+                    buffer.putLong(this.sessionExpireAt);
+                }
+            } catch (BufferUnderflowException e) {
+                throw new IOException("ran out of data", e);
+            }
+        }
+
+        @Override
+        public void readFrom(ByteBuffer buffer) throws IOException {
+            try {
+                this.requestNow = buffer.getLong();
+                this.serverNow = buffer.getLong();
+                this.serverId = buffer.getLong();
+                this.dataCenterId = buffer.getInt();
+                this.clientAddr = readInet(buffer);
+                this.tunnelAddr = readInet(buffer);
+
+                if (buffer.get() == 0) {
+                    this.sessionExpireAt = 0;
+                } else {
+                    this.sessionExpireAt = buffer.getLong();
+                }
+            } catch (BufferUnderflowException e) {
+                throw new IOException("ran out of data", e);
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Pong pong = (Pong) o;
+            return requestNow == pong.requestNow && serverNow == pong.serverNow && serverId == pong.serverId && dataCenterId == pong.dataCenterId && sessionExpireAt == pong.sessionExpireAt && Objects.equals(clientAddr, pong.clientAddr) && Objects.equals(tunnelAddr, pong.tunnelAddr);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(requestNow, serverNow, serverId, dataCenterId, clientAddr, tunnelAddr, sessionExpireAt);
+        }
+    }
+
+    public enum ResponseErrorCode {
+        InvalidSignature,
+        Unauthorized,
+        RequestQueued,
+        TryAgainLater,
+    }
+
+    public static class AgentRegistered implements Message {
+        public AgentSessionId sessionId;
+        public long expiresAt;
+
+        @Override
+        public void writeTo(ByteBuffer buffer) throws IOException {
+            try {
+                this.sessionId.writeTo(buffer);
+                buffer.putLong(this.expiresAt);
+            } catch (BufferUnderflowException e) {
+                throw new IOException("ran out of data", e);
+            }
+        }
+
+        @Override
+        public void readFrom(ByteBuffer buffer) throws IOException {
+            try {
+                this.sessionId = new AgentSessionId();
+                this.sessionId.readFrom(buffer);
+
+                this.expiresAt = buffer.getLong();
+            } catch (BufferUnderflowException e) {
+                throw new IOException("ran out of data", e);
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            AgentRegistered that = (AgentRegistered) o;
+            return expiresAt == that.expiresAt && Objects.equals(sessionId, that.sessionId);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(sessionId, expiresAt);
+        }
+    }
+
+    public static class AgentPortMapping implements Message {
+        public PortRange portRange;
+        public AgentSessionId target;
+
+        @Override
+        public void writeTo(ByteBuffer buffer) throws IOException {
+            try {
+                this.portRange.writeTo(buffer);
+                if (this.target == null) {
+                    buffer.put((byte) 0);
+                } else {
+                    buffer.put((byte) 1);
+                    buffer.putInt(1);
+                    this.target.writeTo(buffer);
+                }
+            } catch (BufferUnderflowException e) {
+                throw new IOException("ran out of data", e);
+            }
+        }
+
+        @Override
+        public void readFrom(ByteBuffer buffer) throws IOException {
+            try {
+                this.portRange = new PortRange();
+                this.portRange.readFrom(buffer);
+
+                if (buffer.get() == 0) {
+                    this.target = null;
+                } else {
+                    int variant = buffer.getInt();
+                    if (variant != 1) {
+                        throw new IOException("unknown port mapping variant: " + variant);
+                    }
+
+                    this.target = new AgentSessionId();
+                    this.target.readFrom(buffer);
+                }
+            } catch (BufferUnderflowException e) {
+                throw new IOException("ran out of data", e);
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            AgentPortMapping that = (AgentPortMapping) o;
+            return Objects.equals(portRange, that.portRange) && Objects.equals(target, that.target);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(portRange, target);
+        }
+    }
+
+    public static class UdpChannelDetails implements Message {
+        public InetSocketAddress tunnelAddress;
+        public byte[] token;
+
+        @Override
+        public void writeTo(ByteBuffer buffer) throws IOException {
+            try {
+                writeInet(buffer, this.tunnelAddress);
+                buffer.putLong(this.token.length);
+                buffer.put(this.token);
+            } catch (BufferUnderflowException e) {
+                throw new IOException("ran out of data", e);
+            }
+        }
+
+        @Override
+        public void readFrom(ByteBuffer buffer) throws IOException {
+            try {
+                this.tunnelAddress = readInet(buffer);
+                long length = buffer.getLong();
+                if (length != (int)length) {
+                    throw new IOException("token length too long");
+                }
+                this.token = new byte[(int)length];
+                buffer.get(this.token);
+            } catch (BufferUnderflowException e) {
+                throw new IOException("ran out of data", e);
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            UdpChannelDetails that = (UdpChannelDetails) o;
+            return Objects.equals(tunnelAddress, that.tunnelAddress) && Arrays.equals(token, that.token);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = Objects.hash(tunnelAddress);
+            result = 31 * result + Arrays.hashCode(token);
+            return result;
+        }
+    }
+
     public static InetSocketAddress readInet(ByteBuffer buffer) throws IOException {
         try {
             int version = buffer.get();
@@ -491,4 +704,5 @@ public class ControlMessages {
             throw new IOException("ran out of data", e);
         }
     }
+
 }

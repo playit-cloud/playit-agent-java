@@ -86,6 +86,63 @@ public class ControlMessagesTest {
         checkOutput(msg, "0000000000000084000000000000002c000000000000003804d1198c0e4e20ea6002");
     }
 
+    @Test
+    public void testPong() throws Exception {
+        ControlMessages.Pong msg = new ControlMessages.Pong();
+        msg.requestNow = 321;
+        msg.serverNow = 5342;
+        msg.serverId = 654;
+        msg.dataCenterId = 564;
+        msg.clientAddr = new InetSocketAddress("209.25.140.1", 5533);
+        msg.tunnelAddr = new InetSocketAddress("33.22.11.55", 45231);
+        msg.sessionExpireAt = 4653;
+
+        testSerialize(msg);
+        checkOutput(msg, "000000000000014100000000000014de000000000000028e0000023404d1198c01159d0421160b37b0af01000000000000122d");
+    }
+
+    @Test
+    public void testAgentRegistered() throws Exception {
+        ControlMessages.AgentRegistered msg = new ControlMessages.AgentRegistered();
+        msg.sessionId = new ControlMessages.AgentSessionId();
+        msg.sessionId.sessionId = 132;
+        msg.sessionId.accountId = 44;
+        msg.sessionId.agentId = 56;
+        msg.expiresAt = 42131;
+
+        testSerialize(msg);
+        checkOutput(msg, "0000000000000084000000000000002c0000000000000038000000000000a493");
+    }
+
+    @Test
+    public void testAgentPortMapping() throws Exception {
+        ControlMessages.AgentPortMapping msg = new ControlMessages.AgentPortMapping();
+        msg.portRange = new ControlMessages.PortRange();
+        msg.portRange.ip = InetAddress.getByName("209.25.140.133");
+        msg.portRange.portStart = (short)3214;
+        msg.portRange.portEnd = (short)3216;
+        msg.portRange.proto = new ControlMessages.PortProto();
+        msg.portRange.proto.proto = PortType.BOTH;
+
+        msg.target = new ControlMessages.AgentSessionId();
+        msg.target.sessionId = 132;
+        msg.target.accountId = 44;
+        msg.target.agentId = 56;
+
+        testSerialize(msg);
+        checkOutput(msg, "04d1198c850c8e0c900301000000010000000000000084000000000000002c0000000000000038");
+    }
+
+    @Test
+    public void testUdpChannelDetails() throws Exception {
+        ControlMessages.UdpChannelDetails msg = new ControlMessages.UdpChannelDetails();
+        msg.tunnelAddress = new InetSocketAddress("2602:fbaf:808::2", 4213);
+        msg.token = Hex.decodeHex("dbce811e5fb75185ede16db49a291b4dd1aca59207ce8c534baff4d53c95aa587696540790e0e4055f0dc5ff41cef19cf11ad9b53142fe1f25e51ea126c15dc7");
+
+        testSerialize(msg);
+        checkOutput(msg, "062602fbaf08080000000000000000000210750000000000000040dbce811e5fb75185ede16db49a291b4dd1aca59207ce8c534baff4d53c95aa587696540790e0e4055f0dc5ff41cef19cf11ad9b53142fe1f25e51ea126c15dc7");
+    }
+
     static void checkOutput(ControlMessages.Message msg, String hex) throws Exception {
         ByteBuffer buffer = ByteBuffer.allocate(1024);
         msg.writeTo(buffer);
