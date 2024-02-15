@@ -449,6 +449,15 @@ public class ControlMessages {
                     && this.accountId == other.accountId
                     && this.agentId == other.agentId;
         }
+
+        @Override
+        public AgentSessionId clone() {
+            AgentSessionId id = new AgentSessionId();
+            id.sessionId = this.sessionId;
+            id.accountId = this.accountId;
+            id.agentId = this.agentId;
+            return id;
+        }
     }
 
     public static class Pong implements Message {
@@ -659,6 +668,101 @@ public class ControlMessages {
         @Override
         public int hashCode() {
             int result = Objects.hash(tunnelAddress);
+            result = 31 * result + Arrays.hashCode(token);
+            return result;
+        }
+    }
+
+    public static class NewClient implements Message {
+        public InetSocketAddress connectAddr;
+        public InetSocketAddress peerAddr;
+        public ClaimInstructions claimInstructions;
+        public long tunnelServerId;
+        public int dataCenterId;
+
+        @Override
+        public void writeTo(ByteBuffer buffer) throws IOException {
+            try {
+                writeInet(buffer, this.connectAddr);
+                writeInet(buffer, this.peerAddr);
+                this.claimInstructions.writeTo(buffer);
+                buffer.putLong(this.tunnelServerId);
+                buffer.putLong(this.dataCenterId);
+            } catch (BufferUnderflowException e) {
+                throw new IOException("ran out of data", e);
+            }
+        }
+
+        @Override
+        public void readFrom(ByteBuffer buffer) throws IOException {
+            try {
+                this.connectAddr = readInet(buffer);
+                this.peerAddr = readInet(buffer);
+                this.claimInstructions = new ClaimInstructions();
+                this.claimInstructions.readFrom(buffer);
+                this.tunnelServerId = buffer.getLong();
+                this.dataCenterId = buffer.getInt();
+            } catch (BufferUnderflowException e) {
+                throw new IOException("ran out of data", e);
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            NewClient newClient = (NewClient) o;
+            return tunnelServerId == newClient.tunnelServerId && dataCenterId == newClient.dataCenterId && Objects.equals(connectAddr, newClient.connectAddr) && Objects.equals(peerAddr, newClient.peerAddr) && Objects.equals(claimInstructions, newClient.claimInstructions);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(connectAddr, peerAddr, claimInstructions, tunnelServerId, dataCenterId);
+        }
+    }
+
+    public static class ClaimInstructions implements Message {
+        public InetSocketAddress address;
+        public byte[] token;
+
+        @Override
+        public void writeTo(ByteBuffer buffer) throws IOException {
+            try {
+                writeInet(buffer, this.address);
+                buffer.putLong(this.token.length);
+                buffer.put(this.token);
+            } catch (BufferUnderflowException e) {
+                throw new IOException("ran out of data", e);
+            }
+        }
+
+        @Override
+        public void readFrom(ByteBuffer buffer) throws IOException {
+            try {
+                this.address = readInet(buffer);
+                long len = buffer.getLong();
+                if (len != (int)len) {
+                    throw new IOException("claim token too long: " + len);
+                }
+
+                this.token = new byte[(int)len];
+                buffer.get(this.token);
+            } catch (BufferUnderflowException e) {
+                throw new IOException("ran out of data", e);
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ClaimInstructions that = (ClaimInstructions) o;
+            return Objects.equals(address, that.address) && Arrays.equals(token, that.token);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = Objects.hash(address);
             result = 31 * result + Arrays.hashCode(token);
             return result;
         }
